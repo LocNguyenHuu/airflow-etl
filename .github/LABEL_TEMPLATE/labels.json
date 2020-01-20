@@ -1,0 +1,58 @@
+[
+    {
+        "name": "Priority: Critical",
+        "color": "#e11d21"
+    },
+    {
+        "name": "Priority: High",
+        "color": "#eb6420"
+    },
+    {
+        "name": "Priority: Medium",
+        "color": "#fbca04"
+    },
+    {
+        "name": "Priority: Low",
+        "color": "#009800"
+    },
+    {
+        "name": "Status: Backlog",
+        "color": "# 207 de5 "
+    },
+    {
+        "name": "Status: Done",
+        "color": "#009800"
+    },
+    {
+        "name": "Status: In Progress",
+        "color": "#3d7199"
+    },
+    {
+        "name": "Status: Review Required",
+        "color": "#bfdadc"
+    },
+    {
+        "name": "Status: Reviewed",
+        "color": "#5319e7"
+    },
+    {
+        "name": "Status: Abandoned",
+        "color": "#000000"
+    },
+    {
+        "name": "Type: Bug",
+        "color": "#e11d21"
+    },
+    {
+        "name": "Type: Enhancement",
+        "color": "#84B6EB"
+    },
+    {
+        "name": "Type: Maintenance",
+        "color": "#207de5"
+    },
+    {
+        "name": "Type: Question",
+        "color": "d4c5f9"
+    }
+]
