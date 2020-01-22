@@ -68,7 +68,8 @@ for training in trainings:
     job_dir = gcp_url + "/"
     packages = "dist/object_detection-0.1.tar.gz,slim/dist/slim-0.1.tar.gz,/tmp/pycocotools/pycocotools-2.0.tar.gz"
     module_name = "object_detection.model_main"
-    runtime_version = "1.13"
+    runtime_version = "1.13"  # TODO : Test 1.14 to suppress python 2.7 deprecation warning
+    python_version = "2.7"  # TODO: Test :3.5 to suppress python 2.7 deprecation warning
     scale_tier = "BASIC_GPU"
     region = GCP_ZONE
     model_dir = gcp_url + "/train_data/"
@@ -78,10 +79,10 @@ for training in trainings:
     training_task_name = f"train_{training_name}_{now}"
     eval_task_name = f"eval_{training_name}_{now}"
 
-    train_model_on_basic_gpu_cmd = f"{cd_obj_detect_api_cmd} && gcloud ai-platform jobs submit training {training_task_name} --job-dir={job_dir} --packages {packages} --module-name {module_name} --runtime-version {runtime_version} --scale-tier {scale_tier} --region {region} -- --model_dir={model_dir} --pipeline_config_path={pipeline_config_path}"
+    train_model_on_basic_gpu_cmd = f"{cd_obj_detect_api_cmd} && gcloud ai-platform jobs submit training {training_task_name} --job-dir={job_dir} --packages {packages} --module-name {module_name} --runtime-version {runtime_version} --python-version {python_version} --scale-tier {scale_tier} --region {region} -- --model_dir={model_dir} --pipeline_config_path={pipeline_config_path}"
 
     train_model_on_basic_gpu = BashOperator(
-        task_id="train_model_" + training_name + "_on_basic_gpu",
+        task_id=f"train_model_{training_name}_on_basic_gpu",
         bash_command=train_model_on_basic_gpu_cmd,
         dag=dag,
     )
@@ -90,33 +91,32 @@ for training in trainings:
         task_id=f"delay_train_log_{training_name}", bash_command="sleep 30s", dag=dag
     )
 
-    display_train_model_logs_cmd = "gcloud ai-platform jobs stream-logs {training_task_name}"
     display_train_model_logs = BashOperator(
-        task_id="display_train_model_logs_" + training_task_name,
-        bash_command=display_train_model_logs_cmd,
+        task_id=f"display_train_model_logs_{training_task_name}",
+        bash_command=f"gcloud ai-platform jobs stream-logs {training_task_name}",
         dag=dag,
     )
 
     delay_eval_task = BashOperator(
-        task_id="delay_eval_" + training_name, bash_command="sleep 6m", dag=dag
+        task_id=f"delay_eval_{training_name}", bash_command="sleep 6m", dag=dag
     )
 
+    # TODO: Validate checkpoint_dir is not as same as model_dir
     eval_model_on_basic_gpu_cmd = f"{cd_obj_detect_api_cmd} && gcloud ai-platform jobs submit training {eval_task_name} --job-dir={job_dir} --packages {packages} --module-name {module_name} --runtime-version {runtime_version} --scale-tier {scale_tier} --region {region} -- --model_dir={model_dir} --pipeline_config_path={pipeline_config_path} --checkpoint_dir={checkpoint_dir}"
 
     eval_model_on_basic_gpu = BashOperator(
-        task_id="eval_model_" + training_name + "_on_basic_gpu",
+        task_id=f"eval_model_{training_name}_on_basic_gpu",
         bash_command=eval_model_on_basic_gpu_cmd,
         dag=dag,
     )
 
     delay_eval_log_task = BashOperator(
-        task_id="delay_eval_log_" + training_name, bash_command="sleep 30s", dag=dag
+        task_id=f"delay_eval_log_{training_name}", bash_command="sleep 30s", dag=dag
     )
 
-    display_eval_model_logs_cmd = "gcloud ai-platform jobs stream-logs {training_task_name}"
     display_eval_model_logs = BashOperator(
-        task_id="display_eval_model_logs_" + eval_task_name,
-        bash_command=display_eval_model_logs_cmd,
+        task_id=f"display_eval_model_logs_{eval_task_name}",
+        bash_command=f"gcloud ai-platform jobs stream-logs {training_task_name}",
         dag=dag,
     )
 
