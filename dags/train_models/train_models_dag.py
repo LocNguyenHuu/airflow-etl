@@ -13,9 +13,9 @@ from airflow.operators.python_operator import PythonOperator
 from train_models import train_models
 from utils import file_ops, slack
 
-AIRFLOW_BASE_FOLDER = "/usr/local/airflow/"
-AIRFLOW_DATA_FOLDER = os.path.join(AIRFLOW_BASE_FOLDER, "data")
-AIRFLOW_TRAINABLE_FOLDER = os.path.join(AIRFLOW_DATA_FOLDER, "trainable")
+AIRFLOW_ROOT_FOLDER = "/usr/local/airflow/"
+DATA_FOLDER = os.path.join(AIRFLOW_ROOT_FOLDER, "data")
+TRAINING_FOLDER = os.path.join(DATA_FOLDER, "training")
 
 TENSORFLOW_OBJECT_DETECTION_RESEARCH_FOLDER = os.environ[
     "TENSORFLOW_OBJECT_DETECTION_RESEARCH_FOLDER"
@@ -35,6 +35,8 @@ default_args = {
 }
 
 
+gcp_base_bucket_url = f"gs://{Variable.get('bucket_name')}-training"
+
 tpu_supported_models = Variable.get("tpu_training_supported_models").split(",")
 # distributed_training = Variable.get("distributed_training")
 
@@ -52,12 +54,15 @@ package_tensorflow_libs_with_dependencies = BashOperator(
     dag=dag,
 )
 
-for json_file in glob(f"{AIRFLOW_TRAINABLE_FOLDER}/*.json"):
 
-    training_name = file_ops.get_filename(json_file, with_extension=False)
+trainings = file_ops.get_subfolders_names_in_directory(TRAINING_FOLDER)
+
+for training in trainings:
+
+    training_name = training
     now = datetime.now().strftime("%Y%m%dT%H%M")
     training_name_with_date = f"{training_name}_{now}"
-    gcp_url = train_models.get_gcp_training_data_url(json_file)
+    gcp_url = f"{gcp_base_bucket_url}/{training_name}"
 
     cd_obj_detect_api_cmd = f"cd {TENSORFLOW_OBJECT_DETECTION_RESEARCH_FOLDER}"
     job_dir = gcp_url + "/"
@@ -82,7 +87,7 @@ for json_file in glob(f"{AIRFLOW_TRAINABLE_FOLDER}/*.json"):
     )
 
     delay_train_log_task = BashOperator(
-        task_id="delay_train_log_" + training_name, bash_command="sleep 30s", dag=dag
+        task_id=f"delay_train_log_{training_name}", bash_command="sleep 30s", dag=dag
     )
 
     display_train_model_logs_cmd = "gcloud ai-platform jobs stream-logs {training_task_name}"
@@ -115,21 +120,21 @@ for json_file in glob(f"{AIRFLOW_TRAINABLE_FOLDER}/*.json"):
         dag=dag,
     )
 
-    download_trained_model_cmd = ""
-    download_trained_model = BashOperator(
-        task_id="download_trained_model" + training_name,
-        bash_command=download_trained_model_cmd,
-        dag=dag,
-    )
+    # download_trained_model_cmd = "echo download"
+    # download_trained_model = BashOperator(
+    #     task_id="download_trained_model_" + training_name,
+    #     bash_command=download_trained_model_cmd,
+    #     dag=dag,
+    # )
 
-    export_frozen_graph_cmd = "python object_detection/export_inference_graph.py --input_type image_tensor --pipeline_config_path {downloaded_model_pipeline_config_path} --trained_checkpoint_prefix {trained_checkpoint_prefix} --output_directory {frozen_graph_export_directory}"
+    # export_frozen_graph_cmd = "python object_detection/export_inference_graph.py --input_type image_tensor --pipeline_config_path {downloaded_model_pipeline_config_path} --trained_checkpoint_prefix {trained_checkpoint_prefix} --output_directory {frozen_graph_export_directory}"
 
-    generate_model_frozen_graph_cmd = "{cd_obj_detect_api_cmd} && {export_frozen_graph_cmd} "
-    generate_model_frozen_graph = BashOperator(
-        task_id="generate_model_frozen_graphl" + training_name,
-        bash_command=generate_model_frozen_graph_cmd,
-        dag=dag,
-    )
+    # generate_model_frozen_graph_cmd = "{cd_obj_detect_api_cmd} && {export_frozen_graph_cmd} "
+    # generate_model_frozen_graph = BashOperator(
+    #     task_id="generate_model_frozen_graphl" + training_name,
+    #     bash_command=generate_model_frozen_graph_cmd,
+    #     dag=dag,
+    # )
 
     tensorboard_cmd = f"tensorboard --logdir {model_dir}:{checkpoint_dir}"
     notify_slack_channel_with_tensorboard_cmd = slack.task_notify_training_in_progress(
