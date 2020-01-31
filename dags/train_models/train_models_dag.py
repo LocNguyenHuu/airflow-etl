@@ -40,7 +40,9 @@ gcp_base_bucket_url = f"gs://{Variable.get('bucket_name')}-training"
 tpu_supported_models = Variable.get("tpu_training_supported_models").split(",")
 # distributed_training = Variable.get("distributed_training")
 
-dag = DAG("train_model", default_args=default_args, catchup=False, schedule_interval=None)
+dag = DAG(
+    "train_model", default_args=default_args, catchup=False, schedule_interval=None
+)
 
 start_task = DummyOperator(task_id="start_task", dag=dag)
 end_task = DummyOperator(task_id="end_task", dag=dag)
@@ -68,13 +70,15 @@ for training in trainings:
     job_dir = gcp_url + "/"
     packages = "dist/object_detection-0.1.tar.gz,slim/dist/slim-0.1.tar.gz,/tmp/pycocotools/pycocotools-2.0.tar.gz"
     module_name = "object_detection.model_main"
-    runtime_version = "1.13"  # TODO : Test 1.14 to suppress python 2.7 deprecation warning
+    runtime_version = (
+        "1.13"  # TODO : Test 1.14 to suppress python 2.7 deprecation warning
+    )
     python_version = "2.7"  # TODO: Test :3.5 to suppress python 2.7 deprecation warning
     scale_tier = "BASIC_GPU"
     region = GCP_ZONE
     model_dir = gcp_url + "/train_data/"
     pipeline_config_path = f"{gcp_url}/pipeline.config"
-    checkpoint_dir = gcp_url + "/eval_data/"
+    checkpoint_dir = model_dir  # gcp_url + "/eval_data/" #TODO:Validate if this works
 
     training_task_name = f"train_{training_name}_{now}"
     eval_task_name = f"eval_{training_name}_{now}"

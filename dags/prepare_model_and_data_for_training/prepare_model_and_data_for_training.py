@@ -34,7 +34,10 @@ def __parse_downloaded_model_file_list_response(response):
 
     data = []
     for link in link_nodes:
-        if "http://download.tensorflow.org/models/object_detection/" in link.attrs["href"]:
+        if (
+            "http://download.tensorflow.org/models/object_detection/"
+            in link.attrs["href"]
+        ):
             model_name = link.text
             model_name = model_name.replace("☆", "")
             model_name = model_name.strip()
@@ -44,12 +47,20 @@ def __parse_downloaded_model_file_list_response(response):
             model_folder_name = os.path.splitext(os.path.basename(model_file_name))[0]
             model_folder_name = os.path.splitext(os.path.basename(model_folder_name))[0]
             try:
-                model_release_date = re.search(r"\d{4}_\d{2}_\d{2}", model_file_name).group()
+                model_release_date = re.search(
+                    r"\d{4}_\d{2}_\d{2}", model_file_name
+                ).group()
             except:
                 model_release_date = None
 
             data.append(
-                (model_release_date, model_folder_name, model_file_name, model_url, model_name)
+                (
+                    model_release_date,
+                    model_folder_name,
+                    model_file_name,
+                    model_url,
+                    model_name,
+                )
             )
 
     logging.info(f"Parsed all model data from the webpage {response.url}")
@@ -109,7 +120,9 @@ def download_reference_model_list_as_csv(url, base_model_csv):
         logging.error(f"An error occurred while downloading the file from {url}")
 
 
-def download_and_extract_base_model(base_model_csv, base_model_folder, required_base_models=None):
+def download_and_extract_base_model(
+    base_model_csv, base_model_folder, required_base_models=None
+):
     """download_and_extract_base_model
 
      Utility function which handle model tar file download and extraction
@@ -123,7 +136,9 @@ def download_and_extract_base_model(base_model_csv, base_model_folder, required_
     """
 
     models_df = pd.read_csv(base_model_csv)
-    models_subset = models_df[["model_folder_name", "model_file_name", "model_url", "model_name"]]
+    models_subset = models_df[
+        ["model_folder_name", "model_file_name", "model_url", "model_name"]
+    ]
 
     if required_base_models is not None:
         models_subset = models_subset[models_df.model_name.isin(required_base_models)]
@@ -147,7 +162,9 @@ def download_and_extract_base_model(base_model_csv, base_model_folder, required_
                     shutil.unpack_archive(tar_file, os.path.join(base_model_folder))
                     os.remove(tar_file)
             except requests.exceptions.RequestException as e:
-                logging.error(f"An error occurred while downloading the file from {model_url}")
+                logging.error(
+                    f"An error occurred while downloading the file from {model_url}"
+                )
         else:
             logging.info("All base models are already present")
 
@@ -166,7 +183,9 @@ def compare_label_map_file(base_tf_record_folder, video_source):
     :rtype: Boolean
     """
 
-    subfolders = file_ops.get_directory_subfolders_subset(base_tf_record_folder, video_source)
+    subfolders = file_ops.get_directory_subfolders_subset(
+        base_tf_record_folder, video_source
+    )
 
     if len(subfolders) > 1:
         label_maps = []
@@ -188,7 +207,9 @@ def compare_label_map_file(base_tf_record_folder, video_source):
         logging.warn(f"There were not enough dataset to compare i.g : Less than two")
 
 
-def validate_requested_model_exist_in_model_zoo_list(base_models_csv, required_base_models):
+def validate_requested_model_exist_in_model_zoo_list(
+    base_models_csv, required_base_models
+):
     """validate_requested_model_exist_in_model_zoo_list
 
     A utility function to validate if a requested model is currently
@@ -215,7 +236,9 @@ def validate_requested_model_exist_in_model_zoo_list(base_models_csv, required_b
             raise ValueError(
                 "Required model {required_model} does not exist in the official tensorflow model zoo"
             )
-    logging.info("All required model exist in the official tensorflow model zoo reference list")
+    logging.info(
+        "All required model exist in the official tensorflow model zoo reference list"
+    )
 
 
 def validate_model_presence_in_model_repo_or_create(model_repo_folder):
@@ -230,6 +253,24 @@ def validate_model_presence_in_model_repo_or_create(model_repo_folder):
     file_ops.folder_exist_or_create(model_repo_folder)
 
     logging.info("Model directory present in model repository")
+
+
+def validate_deep_detector_dvc_remote_credential_present_or_add(
+    model_repo_folder, dvc_remote_name, dvc_remote_url
+):
+    dvc_file = f"{model_repo_folder}/.dvc/config"
+    if not os.path.exists(dvc_file):
+        cmd = f"cd {model_repo_folder} && dvc init && dvc remote add {dvc_remote_name} {dvc_remote_url} --default"
+        os.system(cmd)
+        logging.info("DVC init completed")
+    elif os.path.exists(dvc_file) and not os.path.getsize(dvc_file) > 0:
+        cmd = f"cd {model_repo_folder} && dvc remote add {dvc_remote_name} {dvc_remote_url} --default && dvc pull"
+        os.system(cmd)
+        logging.info("DVC config init completed")
+    else:
+        cmd = f"cd {model_repo_folder} && dvc remote add {dvc_remote_name} {dvc_remote_url} --default && dvc pull"
+        os.system(cmd)
+        logging.info("DVC was previously inited")
 
 
 def create_training_folder(model_training_folder):
@@ -268,7 +309,9 @@ def copy_images_to_output(labelbox_output_folder, output_folder, video_source):
         subfolders = file_ops.get_subfolders_in_directory(subfolder)
 
         subfolders = [
-            image_subfolder for image_subfolder in subfolders if image_subfolder.endswith("images")
+            image_subfolder
+            for image_subfolder in subfolders
+            if image_subfolder.endswith("images")
         ]
 
         folder = subfolders[0]
@@ -291,7 +334,9 @@ def copy_labelbox_output_images_to_training_folder(
     """
     file_ops.folder_exist_or_create(model_training_images_folder)
 
-    copy_images_to_output(labelbox_output_folder, model_training_images_folder, video_source)
+    copy_images_to_output(
+        labelbox_output_folder, model_training_images_folder, video_source
+    )
 
     logging.info("Images copied to temporary image folder")
 
@@ -312,7 +357,9 @@ def copy_labelbox_output_images_to_model_repo_folder(
     """
     file_ops.folder_exist_or_create(model_repo_images_folder)
 
-    copy_images_to_output(labelbox_output_folder, model_repo_images_folder, video_source)
+    copy_images_to_output(
+        labelbox_output_folder, model_repo_images_folder, video_source
+    )
 
     logging.info("Images copied to model repo image folder")
 
@@ -333,7 +380,9 @@ def copy_labelbox_output_annotations_to_model_repo_folder(
     """
     file_ops.folder_exist_or_create(model_repo_annotations_folder)
 
-    copy_images_to_output(labelbox_output_folder, model_repo_annotations_folder, video_source)
+    copy_images_to_output(
+        labelbox_output_folder, model_repo_annotations_folder, video_source
+    )
 
     logging.info("Annotations copied to model repo annotations folder")
 
@@ -358,7 +407,9 @@ def copy_tf_records_to_training_folder(
     file_ops.folder_exist_or_create(training_tf_records_train_folder)
     file_ops.folder_exist_or_create(training_tf_records_val_folder)
 
-    subfolders = file_ops.get_directory_subfolders_subset(tf_records_folder, video_source)
+    subfolders = file_ops.get_directory_subfolders_subset(
+        tf_records_folder, video_source
+    )
 
     labelmap_files = []
     tf_record_train_files = []
@@ -383,10 +434,14 @@ def copy_tf_records_to_training_folder(
                 outfile.write(line)
         logging.info(f"Copied {labelmap_file} to {model_training_tf_records_folder}")
 
-    logging.info("Completed copy of all tf records file to temporary training tf records folder")
+    logging.info(
+        "Completed copy of all tf records file to temporary training tf records folder"
+    )
 
 
-def copy_tf_records_to_model_repo(tf_records_folder, model_repo_tf_records_folder, video_source):
+def copy_tf_records_to_model_repo(
+    tf_records_folder, model_repo_tf_records_folder, video_source
+):
     """copy_tf_records_to_model_repo
 
     A utility function to copy tf records to training folder
@@ -404,7 +459,9 @@ def copy_tf_records_to_model_repo(tf_records_folder, model_repo_tf_records_folde
     file_ops.folder_exist_or_create(model_repo_tf_record_train_folder)
     file_ops.folder_exist_or_create(model_repo_tf_records_val_folder)
 
-    subfolders = file_ops.get_directory_subfolders_subset(tf_records_folder, video_source)
+    subfolders = file_ops.get_directory_subfolders_subset(
+        tf_records_folder, video_source
+    )
 
     labelmap_files = []
     trainval_files = []
@@ -438,7 +495,9 @@ def copy_tf_records_to_model_repo(tf_records_folder, model_repo_tf_records_folde
                 shutil.copyfileobj(infile, outfile)
         logging.info(f"trainval file created in {model_repo_tf_records_folder}")
 
-    logging.info("Completed copy of all tf records file to temporary training tf records folder")
+    logging.info(
+        "Completed copy of all tf records file to temporary training tf records folder"
+    )
 
 
 def copy_base_model_to_training_folder(
@@ -550,9 +609,13 @@ def generate_model_config(
     :raises error: IOError on writing file on disk
     """
 
-    pre_trained_model_checkpoint_path = f"{bucket_url}/{model_folder_ts}/model/base/model.ckpt"
+    pre_trained_model_checkpoint_path = (
+        f"{bucket_url}/{model_folder_ts}/model/base/model.ckpt"
+    )
     label_map_path = f"{bucket_url}/{model_folder_ts}/data/tf_records/labelmap.pbtxt"
-    train_tf_record_path = f"{bucket_url}/{model_folder_ts}/data/tf_records/train/*.record"
+    train_tf_record_path = (
+        f"{bucket_url}/{model_folder_ts}/data/tf_records/train/*.record"
+    )
     val_tf_record_path = f"{bucket_url}/{model_folder_ts}/data/tf_records/val/*.record"
 
     pipeline_config_files = [
@@ -560,17 +623,23 @@ def generate_model_config(
         f"{model_repo_folder}/pipeline.config",
     ]
 
-    model_config_template = re.sub("NUM_CLASSES", str(num_classes), model_config_template)
+    model_config_template = re.sub(
+        "NUM_CLASSES", str(num_classes), model_config_template
+    )
     model_config_template = re.sub(
         "PRE_TRAINED_MODEL_CHECKPOINT_PATH",
         pre_trained_model_checkpoint_path,
         model_config_template,
     )
-    model_config_template = re.sub("LABEL_MAP_PATH", label_map_path, model_config_template)
+    model_config_template = re.sub(
+        "LABEL_MAP_PATH", label_map_path, model_config_template
+    )
     model_config_template = re.sub(
         "TRAIN_TF_RECORD_PATH", train_tf_record_path, model_config_template
     )
-    model_config_template = re.sub("VAL_TF_RECORD_PATH", val_tf_record_path, model_config_template)
+    model_config_template = re.sub(
+        "VAL_TF_RECORD_PATH", val_tf_record_path, model_config_template
+    )
     model_config_template = re.sub(
         "TRAINING_BATCH_SIZE", str(training_batch_size), model_config_template
     )
@@ -582,7 +651,9 @@ def generate_model_config(
         try:
             with open(config_file, "w") as outfile:
                 outfile.write(model_config_template)
-            logging.info(f"Model config file has been created successfully at {config_file}")
+            logging.info(
+                f"Model config file has been created successfully at {config_file}"
+            )
         except IOError as error:
             logging.error(
                 "An error has been raised while trying to save the model config to a file on disk"

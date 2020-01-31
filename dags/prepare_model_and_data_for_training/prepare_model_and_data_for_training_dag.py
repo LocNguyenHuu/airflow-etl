@@ -1,5 +1,5 @@
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.hooks.base_hook import BaseHook
@@ -30,7 +30,8 @@ default_args = {
     "email_on_failure": False,
     "email_on_retry": False,
     "on_failure_callback": slack.task_fail_slack_alert,
-    "retries": 0,
+    "retries": 2,
+    "retry_delay": timedelta(minutes=2),
 }
 
 
@@ -89,7 +90,10 @@ validate_reference_model_list_exist_or_create = BranchPythonOperator(
 download_reference_model_list_as_csv = PythonOperator(
     task_id="download_reference_model_list_as_csv",
     python_callable=prepare_model_and_data_for_training.download_reference_model_list_as_csv,
-    op_kwargs={"url": tensorflow_model_zoo_markdown_url, "base_model_csv": MODELS_CSV_FILE},
+    op_kwargs={
+        "url": tensorflow_model_zoo_markdown_url,
+        "base_model_csv": MODELS_CSV_FILE,
+    },
     dag=dag,
 )
 
@@ -109,32 +113,51 @@ validate_base_model_exist_or_download = PythonOperator(
 validate_requested_model_exist_in_model_zoo_list = PythonOperator(
     task_id="validate_requested_model_exist_in_model_zoo_list",
     python_callable=prepare_model_and_data_for_training.validate_requested_model_exist_in_model_zoo_list,
-    op_kwargs={"base_models_csv": MODELS_CSV_FILE, "required_base_models": required_base_models,},
+    op_kwargs={
+        "base_models_csv": MODELS_CSV_FILE,
+        "required_base_models": required_base_models,
+    },
     dag=dag,
 )
 
 validate_deep_detector_model_repo_exist_or_clone = BashOperator(
     task_id="validate_deep_detector_model_repo_exist_or_clone",
     bash_command="[ -d '{{params.model_repo_folder}}' ] || git clone -v {{params.model_repo_url}} {{params.model_repo_folder}}",
-    params={"model_repo_folder": MODEL_REPO_FOLDER, "model_repo_url": model_repo_git_remote_url,},
+    params={
+        "model_repo_folder": MODEL_REPO_FOLDER,
+        "model_repo_url": model_repo_git_remote_url,
+    },
     provide_context=True,
     dag=dag,
 )
 
-validate_deep_detector_dvc_remote_credential_present_or_add = BashOperator(
+validate_deep_detector_dvc_remote_credential_present_or_add = PythonOperator(
     task_id="validate_deep_detector_dvc_remote_credential_present_or_add",
-    bash_command="\
-        [ -s '{{params.model_repo_folder}}/.dvc/config' ] || cd {{params.model_repo_folder}} && \
-        dvc init && \
-        dvc remote add {{params.model_repo_dvc_remote_name}} {{params.dvc_remote_url}} --default && \
-        cat {{params.model_repo_folder}}/.dvc/config",
-    params={
+    python_callable=prepare_model_and_data_for_training.validate_deep_detector_dvc_remote_credential_present_or_add,
+    op_kwargs={
         "model_repo_folder": MODEL_REPO_FOLDER,
-        "model_repo_dvc_remote_name": model_repo_dvc_remote_name,
+        "dvc_remote_name": model_repo_dvc_remote_name,
         "dvc_remote_url": gcp_base_dvc_bucket_url,
     },
     dag=dag,
 )
+
+
+# # TODO: Fix this
+# validate_deep_detector_dvc_remote_credential_present_or_add = BashOperator(
+#     task_id="validate_deep_detector_dvc_remote_credential_present_or_add",
+#     bash_command="\
+#         [[ ! -e '{{params.model_repo_folder}}/.dvc/config' ]] || cd {{params.model_repo_folder}} && \
+#         dvc init && \
+#         dvc remote add {{params.model_repo_dvc_remote_name}} {{params.dvc_remote_url}} --default && \
+#         cat {{params.model_repo_folder}}/.dvc/config",
+#     params={
+#         "model_repo_folder": MODEL_REPO_FOLDER,
+#         "model_repo_dvc_remote_name": model_repo_dvc_remote_name,
+#         "dvc_remote_url":
+#     },
+#     dag=dag,
+# )
 
 # This task is declared before since it will be added after dynamic tasks
 create_training_data_bucket = BashOperator(
@@ -167,13 +190,18 @@ upload_data_to_dvc_repo_and_git = BashOperator(
 
 
 # Add sleep duration list to delay task (dvc lock file)
-sleeps = [item * 20 for item in range(1, len(video_feed_sources) * len(required_base_models))]
+sleeps = [
+    item * 20 for item in range(1, len(video_feed_sources) * len(required_base_models))
+]
 
 for idx1, video_source in enumerate(video_feed_sources):
     validate_labelmap_file_content_are_the_same = PythonOperator(
         task_id=f"check_labelmap_file_content_are_the_same_" + video_source,
         python_callable=prepare_model_and_data_for_training.compare_label_map_file,
-        op_kwargs={"base_tf_record_folder": TF_RECORD_FOLDER, "video_source": video_source},
+        op_kwargs={
+            "base_tf_record_folder": TF_RECORD_FOLDER,
+            "video_source": video_source,
+        },
         dag=dag,
     )
     for idx2, base_model in enumerate(required_base_models):
@@ -238,11 +266,12 @@ for idx1, video_source in enumerate(video_feed_sources):
             dag=dag,
         )
 
+        # TODO: Check if any changes
         add_images_to_repo_through_dvc = BashOperator(
             task_id=f"add_images_to_repo_through_dvc_{video_source}_{base_model}",
             bash_command="sleep {{params.sleep_duration}} && \
                           cd {{params.model_repo_folder}} && \
-                          dvc add data/images/* && \
+                          dvc add -R data/images/ && \
                           git add data/images/.gitignore data/images/*.dvc && \
                           git commit -m 'Add images to {{params.model_folder}}'",
             provide_context=True,
@@ -369,7 +398,9 @@ for idx1, video_source in enumerate(video_feed_sources):
                 "model_training_folder": model_training_folder,
                 "model_repo_folder": model_repo_folder,
                 "model_folder_ts": model_folder_with_ts,
-                "model_config_template": get_proper_model_config(video_source, base_model),
+                "model_config_template": get_proper_model_config(
+                    video_source, base_model
+                ),
                 "num_classes": get_object_class_count(video_source),
                 "bucket_url": gcp_base_bucket_url,
                 "training_batch_size": model_config_training_batch_size,
@@ -425,4 +456,6 @@ if len(set(upload_tasks)) == len(required_base_models) * 2:
 
     upload_tasks[-1] >> upload_data_to_dvc_repo_and_git
 else:
-    raise ValueError("There is a duplicate entry in the tensorflow_model_zoo_models variable")
+    raise ValueError(
+        "There is a duplicate entry in the tensorflow_model_zoo_models variable"
+    )
