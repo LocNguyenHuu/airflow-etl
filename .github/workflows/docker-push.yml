@@ -1,7 +1,17 @@
-- uses: jerray/publish-docker-action@master
-  with:
-    username: ${{ secrets.DOCKER_USERNAME }}
-    password: ${{ secrets.DOCKER_PASSWORD }}
-    registry: docker.pkg.github.com
-    repository: jerray/publish-docker-action
-    auto_tag: true
+name: Main
+on:
+  - push
+  - create
+jobs:
+  Build:
+    name: Build Job
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish
+        uses: jerray/publish-docker-action@master
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: docker.pkg.github.com
+          repository: jerray/publish-docker-action
+          auto_tag: true
