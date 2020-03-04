@@ -1,15 +1,15 @@
-name: Docker Build
-on:
-  push:
-    branches:
-      - master
+name: Publish Docker
+on: [push]
 jobs:
-  runs-on: ubuntu-latest
-  steps:
-    - name: test
-    - uses: jerray/publish-docker-action@master
-      with:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-        registry: docker.pkg.github.com
-        repository: jerray/publish-docker-action
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+      - name: Publish to Registry
+        uses: elgohr/Publish-Docker-Github-Action@master
+        with:
+          name: sonia-auv/airflow-etl/airflow-etl
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN } }
+          registry: docker.pkg.github.com
+          #cache: ${{ github.event_name != 'schedule' }}
