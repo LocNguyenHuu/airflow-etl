@@ -1,4 +1,4 @@
-name: Publish Docker (Master)
+name: Publish Docker (develop)
 on:
   push:
     branches:
