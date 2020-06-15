@@ -161,7 +161,7 @@ COPY config/variables.json ${AIRFLOW_HOME}/variables.json
 RUN chown -R airflow: ${AIRFLOW_HOME}
 
 # Copying our docker entrypoint
-COPY script/entrypoint.sh /entrypoint.sh
+COPY scripts/entrypoint.sh /entrypoint.sh
 
 EXPOSE 8080
 
