@@ -1,4 +1,5 @@
-FROM tensorflow/tensorflow:1.15.2-gpu-py3
+FROM tensorflow/tensorflow:1.13.2-gpu-py3
+
 
 ARG BUILD_DATE
 ARG VERSION
@@ -144,10 +145,6 @@ RUN set -ex \
     /usr/share/doc-base
 
 ENV PYTHONPATH=${PYTHONPATH}:${TENSORFLOW_OBJECT_DETECTION_LIB_PATH}:${TENSORFLOW_OBJECT_DETECTION_SLIM_PATH}
-# Testing installation of the API
-RUN cd ${AIRFLOW_HOME}/models-${TENSORFLOW_OBJECT_DETECTION_VERSION}/research/ \
-    && python object_detection/builders/model_builder_test.py
-
 
 # *********************************************
 # Creating airflow logs folder
