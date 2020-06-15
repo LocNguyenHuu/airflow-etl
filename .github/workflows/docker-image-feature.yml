@@ -1,0 +1,60 @@
+name: Docker Image CI - Feature Branch
+
+on:
+  push:
+    branches: [feature/**]
+
+jobs:
+  build-airflow-image:
+    name: "Build Apache-Airflow Image"
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: airflow-etl
+      GITHUB_REMOTE_URL: docker.pkg.github.com/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Build the docker image (robot based)
+        run: |
+          docker build . --tag build-feature-${GITHUB_REF##*/}-${GITHUB_RUN_NUMBER} --build-arg BUILD_DATE=$(date '+%Y-%m-%d_%H:%M:%S') --build-arg VERSION=${GITHUB_REF##*/}-$(date '  +%Y-%m-%d_%H:%M:%S') --build-arg BASE_IMAGE=${BASE_IMAGE}
+
+      - name: Login to Github Package Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login docker.pkg.github.com -u ${{ github.actor }} --password-stdin
+
+      - name: Create Docker Image Tag
+        run: |
+          docker tag build-feature-${GITHUB_REF##*/}-${GITHUB_RUN_NUMBER} ${GITHUB_REMOTE_URL}/${IMAGE_NAME}:${ARCH}-${TARGET_TYPE}-${TARGET_VERSION}-${GITHUB_REF##*/}
+
+      - name: Push Image to Github Packages Registry
+        run: |
+          docker push ${GITHUB_REMOTE_URL}/${IMAGE_NAME}:${ARCH}-${TARGET_TYPE}-${TARGET_VERSION}-${GITHUB_REF##*/}
+
+  notify-success:
+    name: "Notify Slack - Success"
+    runs-on: ubuntu-latest
+    needs: [build-airflow-image]
+    if: success()
+    steps:
+      - name: Notify Slack Success
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        uses: voxmedia/github-action-slack-notify-build@v1
+        with:
+          channel: github-ci-notifications
+          status: SUCCESS
+          color: good
+
+  notify-fail:
+    name: "Notify Slack - Failure"
+    runs-on: ubuntu-latest
+    needs: [build-airflow-image]
+    if: failure()
+    steps:
+      - name: Notify Slack Fail
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        uses: voxmedia/github-action-slack-notify-build@v1
+        with:
+          channel: github-ci-notifications
+          status: FAILED
+          color: danger
