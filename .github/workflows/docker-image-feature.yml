@@ -23,11 +23,11 @@ jobs:
 
       - name: Create Docker Image Tag
         run: |
-          docker tag build-feature-${GITHUB_REF##*/}-${GITHUB_RUN_NUMBER} ${GITHUB_REMOTE_URL}/${IMAGE_NAME}:${ARCH}-${TARGET_TYPE}-${TARGET_VERSION}-${GITHUB_REF##*/}
+          docker tag build-feature-${GITHUB_REF##*/}-${GITHUB_RUN_NUMBER} ${GITHUB_REMOTE_URL}/${IMAGE_NAME}:feature-${GITHUB_REF##*/}
 
       - name: Push Image to Github Packages Registry
         run: |
-          docker push ${GITHUB_REMOTE_URL}/${IMAGE_NAME}:${ARCH}-${TARGET_TYPE}-${TARGET_VERSION}-${GITHUB_REF##*/}
+          docker push ${GITHUB_REMOTE_URL}/${IMAGE_NAME}:feature-${GITHUB_REF##*/}
 
   notify-success:
     name: "Notify Slack - Success"
