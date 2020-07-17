@@ -1,11 +1,15 @@
 FROM tensorflow/tensorflow:1.13.2-gpu-py3
 
 
+
 ARG BUILD_DATE
 ARG VERSION
 ARG SONIA_USER=sonia
 ARG SONIA_UID=50000
 ARG BASE_LIB_NAME=apache-airflow
+
+ARG DOCKER_GROUP_ID=999
+ARG BUILD_ENV="local"
 
 ARG PROTOC_VERSION=3.10.1
 ARG PROTOC_ZIP=protoc-${PROTOC_VERSION}-linux-x86_64.zip
@@ -13,19 +17,11 @@ ARG TENSORFLOW_OBJ_DETECTION_VERSION=1.13.0
 ARG TENSORFLOW_OBJECT_DETECTION_LIB_PATH=${AIRFLOW_HOME}/models-${TENSORFLOW_OBJ_DETECTION_VERSION}/research/
 ARG TENSORFLOW_OBJECT_DETECTION_SLIM_PATH=${AIRFLOW_HOME}/models-${TENSORFLOW_OBJ_DETECTION_VERSION}/research/slim
 
-
 LABEL maintainer="club.sonia@etsmtl.net"
 LABEL description="A docker image of Airflow an ETL orchestration plateform with GPU Support"
 LABEL net.etsmtl.sonia-auv.base_lib.build-date=${BUILD_DATE}
 LABEL net.etsmtl.sonia-auv.base_lib.version=${VERSION}
 LABEL net.etsmtl.sonia-auv.base_lib.name=${BASE_LIB_NAME}
-
-# *********************************************
-# Declaring arguments variables
-ARG DOCKER_GROUP_ID=999
-ARG GCLOUD_SERVICE_ACCOUNT_EMAIL
-ARG BUILD_ENV="local"
-# *********************************************
 
 # Make sure noninteractive debian install is used and language variables set
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -34,9 +30,6 @@ ENV DEBIAN_FRONTEND=noninteractive \
 
 # Airflow
 ENV AIRFLOW_HOME=/usr/local/airflow
-
-# Google cloud
-ENV GCLOUD_SERVICE_ACCOUNT_EMAIL=${GCLOUD_SERVICE_ACCOUNT_EMAIL}
 
 # Tensorflow Object Detection API
 ENV PROTOC_VERSION=${PROTOC_VERSION}
@@ -82,35 +75,9 @@ RUN set -ex \
     && addgroup --gid ${DOCKER_GROUP_ID} docker \
     && useradd -ms /bin/bash -d ${AIRFLOW_HOME} -G docker airflow \
     && pip install -U pip setuptools wheel \
-    && export CLOUD_SDK_REPO="cloud-sdk-$(lsb_release -c -s)" \
-    && echo "deb http://packages.cloud.google.com/apt $CLOUD_SDK_REPO main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
-    && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
-    && apt-get update -y && apt-get install google-cloud-sdk   -y \
     && apt-get purge --auto-remove -yqq $buildDeps \
     && apt-get autoremove -yqq --purge \
     && apt-get clean \
-    && rm -rf \
-    /var/lib/apt/lists/* \
-    /tmp/* \
-    /var/tmp/* \
-    /usr/share/man \
-    /usr/share/doc \
-    /usr/share/doc-base
-
-# Installing protobuf (Binary serialization) required for tfrecord creation
-RUN set -ex \
-    && buildDeps=' \
-    unzip \
-    ' \
-    && apt-get update -yqq \
-    && apt-get upgrade -yqq \
-    && apt-get install -yqq --no-install-recommends \
-    $buildDeps \
-    && curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP} \
-    && unzip -o ${PROTOC_ZIP} -d /usr/local bin/protoc \
-    && unzip -o ${PROTOC_ZIP} -d /usr/local 'include/*' \
-    && rm -f ${PROTOC_ZIP}\
-    && apt-get purge --auto-remove -yqq $buildDeps\
     && rm -rf \
     /var/lib/apt/lists/* \
     /tmp/* \
@@ -123,18 +90,25 @@ RUN set -ex \
 COPY requirements.txt /tmp/requirements.txt
 RUN pip install -r /tmp/requirements.txt
 
+# Installing protobuf (Binary serialization) required for tfrecord creation
 # Intalling tensorflow object detection framework
 RUN set -ex \
     && buildDeps=' \
+    unzip \
     wget \
     ' \
     && apt-get update -yqq \
     && apt-get upgrade -yqq \
     && apt-get install -yqq --no-install-recommends \
     $buildDeps \
+    && curl -OL https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ZIP} \
+    && unzip -o ${PROTOC_ZIP} -d /usr/local bin/protoc \
+    && unzip -o ${PROTOC_ZIP} -d /usr/local 'include/*' \
+    && rm -f ${PROTOC_ZIP}\
     && wget -q -c https://github.com/tensorflow/models/archive/v${TENSORFLOW_OBJECT_DETECTION_VERSION}.tar.gz -O - | tar -xz -C ${AIRFLOW_HOME} \
     && cd ${AIRFLOW_HOME}/models-${TENSORFLOW_OBJECT_DETECTION_VERSION}/research/ \
     && protoc object_detection/protos/*.proto --python_out=. \
+    && apt-get purge --auto-remove -yqq $buildDeps\
     && apt-get purge --auto-remove -yqq $buildDeps\
     && rm -rf \
     /var/lib/apt/lists/* \
